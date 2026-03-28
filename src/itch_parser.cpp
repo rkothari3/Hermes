@@ -37,9 +37,116 @@ static inline void read_stock(const uint8_t* p, char* out) {
 // ── parse_message ────────────────────────────────────────────────────────────
 
 void parse_message(const uint8_t* body, size_t /*len*/, const MessageHandlers& h) {
-    (void)h;  // handlers wired in subsequent tasks
     switch (body[0]) {
-        // Handlers implemented in subsequent tasks
+        case 'A': {
+            if (!h.on_add_order) break;
+            AddOrder msg{};
+            msg.locate    = read_u16(body + 1);
+            msg.timestamp = read_u48(body + 5);
+            msg.order_ref = read_u64(body + 11);
+            msg.side      = body[19];
+            msg.shares    = read_u32(body + 20);
+            read_stock(body + 24, msg.stock);
+            msg.price     = read_u32(body + 32);
+            h.on_add_order(msg, h.ctx);
+            break;
+        }
+        case 'D': {
+            if (!h.on_order_delete) break;
+            OrderDelete msg{};
+            msg.locate    = read_u16(body + 1);
+            msg.timestamp = read_u48(body + 5);
+            msg.order_ref = read_u64(body + 11);
+            h.on_order_delete(msg, h.ctx);
+            break;
+        }
+        case 'U': {
+            if (!h.on_order_replace) break;
+            OrderReplace msg{};
+            msg.locate         = read_u16(body + 1);
+            msg.timestamp      = read_u48(body + 5);
+            msg.orig_order_ref = read_u64(body + 11);
+            msg.new_order_ref  = read_u64(body + 19);
+            msg.new_shares     = read_u32(body + 27);
+            msg.new_price      = read_u32(body + 31);
+            h.on_order_replace(msg, h.ctx);
+            break;
+        }
+        case 'E': {
+            if (!h.on_order_executed) break;
+            OrderExecuted msg{};
+            msg.locate          = read_u16(body + 1);
+            msg.timestamp       = read_u48(body + 5);
+            msg.order_ref       = read_u64(body + 11);
+            msg.executed_shares = read_u32(body + 19);
+            msg.match_number    = read_u64(body + 23);
+            h.on_order_executed(msg, h.ctx);
+            break;
+        }
+        case 'X': {
+            if (!h.on_order_cancel) break;
+            OrderCancel msg{};
+            msg.locate           = read_u16(body + 1);
+            msg.timestamp        = read_u48(body + 5);
+            msg.order_ref        = read_u64(body + 11);
+            msg.cancelled_shares = read_u32(body + 19);
+            h.on_order_cancel(msg, h.ctx);
+            break;
+        }
+        case 'R': {
+            if (!h.on_stock_directory) break;
+            StockDirectory msg{};
+            msg.locate           = read_u16(body + 1);
+            msg.timestamp        = read_u48(body + 5);
+            read_stock(body + 11, msg.stock);
+            msg.market_category  = (char)body[19];
+            msg.financial_status = (char)body[20];
+            msg.round_lot_size   = read_u32(body + 21);
+            h.on_stock_directory(msg, h.ctx);
+            break;
+        }
+        case 'F': {
+            if (!h.on_add_order_mpid) break;
+            AddOrderMPID msg{};
+            msg.locate    = read_u16(body + 1);
+            msg.timestamp = read_u48(body + 5);
+            msg.order_ref = read_u64(body + 11);
+            msg.side      = body[19];
+            msg.shares    = read_u32(body + 20);
+            read_stock(body + 24, msg.stock);
+            msg.price     = read_u32(body + 32);
+            memcpy(msg.mpid, body + 36, 4);
+            msg.mpid[4]   = '\0';
+            h.on_add_order_mpid(msg, h.ctx);
+            break;
+        }
+        case 'C': {
+            if (!h.on_order_executed_price) break;
+            OrderExecutedPrice msg{};
+            msg.locate          = read_u16(body + 1);
+            msg.timestamp       = read_u48(body + 5);
+            msg.order_ref       = read_u64(body + 11);
+            msg.executed_shares = read_u32(body + 19);
+            msg.match_number    = read_u64(body + 23);
+            msg.printable       = (char)body[31];
+            msg.execution_price = read_u32(body + 32);
+            h.on_order_executed_price(msg, h.ctx);
+            break;
+        }
+        case 'P': {
+            if (!h.on_trade) break;
+            Trade msg{};
+            msg.locate       = read_u16(body + 1);
+            msg.timestamp    = read_u48(body + 5);
+            msg.order_ref    = read_u64(body + 11);
+            msg.side         = body[19];
+            msg.shares       = read_u32(body + 20);
+            read_stock(body + 24, msg.stock);
+            msg.price        = read_u32(body + 32);
+            msg.match_number = read_u64(body + 36);
+            h.on_trade(msg, h.ctx);
+            break;
+        }
         default: break;
     }
 }
