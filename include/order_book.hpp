@@ -30,13 +30,19 @@ struct Order {
 };
 
 // One symbol's full order book — ~131KB per symbol.
+// Bids and asks use independent base prices so that pre-market wide-spread
+// orders do not force the bid and ask arrays to share an unworkable common base.
 struct OrderBook {
     char     symbol[9]    = {};
     uint16_t locate       = 0;
-    uint32_t base_price   = 0;    // array[idx] covers price = base_price + idx
+    uint32_t base_price   = 0;    // kept for back-compat; equals bid_base_price
+    uint32_t bid_base     = 0;    // bids[i] covers price = bid_base + i
+    uint32_t ask_base     = 0;    // asks[i] covers price = ask_base + i
     uint32_t best_bid_idx = 0;            // index of highest bid with quantity > 0
     uint32_t best_ask_idx = MAX_LEVELS - 1; // index of lowest ask with quantity > 0
-    bool     initialized  = false;
+    bool     bid_initialized = false;
+    bool     ask_initialized = false;
+    bool     initialized  = false;  // true once either side has seen an order
     Level    bids[MAX_LEVELS] = {};
     Level    asks[MAX_LEVELS] = {};
 };
