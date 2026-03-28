@@ -530,11 +530,12 @@ Keep it focused. The narrower the scope, the deeper the engineering, the more im
 
 ## Current Status
 
-**Phase 1 complete (2026-03-28).** Message counter working and verified.
-- 268,744,780 total messages parsed correctly from `12302019.NASDAQ_ITCH50`
-- Framing logic (2-byte big-endian length prefix) verified manually against raw hex
-- `phase1_counter.cpp` compiles clean: `g++ -std=c++17 -O2 -Wall -Wextra`
-- Data file: `12302019.NASDAQ_ITCH50` (decompressed, ~10GB) in project root
+**Phase 2 complete (2026-03-28).** Full ITCH parser with structs, byte-swapping, and unit tests.
+- All 9 message types parsed and tested field-by-field (A, F, E, C, X, D, U, P, R)
+- Counts verified against Phase 1 output: 264,469,445 handled messages match exactly
+- Google Test via FetchContent, CMake build system in place
+- 10/10 tests passing (9 unit + 1 integration)
+- All code in `include/itch_parser.hpp`, `src/itch_parser.cpp`, `src/main.cpp`, `tests/test_parser.cpp`
 
-**Next: Phase 2** — Full parser with structs and byte-swapping for all relevant message types.
+**Next: Phase 3** — Order book updater (array-indexed, cache-friendly, per-symbol).
 
