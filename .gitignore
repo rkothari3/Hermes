@@ -1,2 +1,12 @@
-*.gz
-12302019.NASDAQ_ITCH50
+# *.gz
+# 12302019.NASDAQ_ITCH50
+
+# Git worktrees
+.worktrees/
+
+# Build output
+build/
+
+# Compiled binaries
+counter
+hermes
