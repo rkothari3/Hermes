@@ -530,6 +530,14 @@ Keep it focused. The narrower the scope, the deeper the engineering, the more im
 
 ## Current Status
 
+**Phase 4 complete (2026-03-29).** Signal engine with AAPL CSV output.
+- `compute_signals()`: spread, mid-price, microprice (Stoikov), OBI over top-5 non-empty levels
+- All integer arithmetic in hot path; OBI as float; int32_t bid loop prevents uint32_t underflow
+- 12 unit tests, 37/37 total passing
+- `aapl_signals.csv`: 1,177,357 rows across full trading day; 0 OBI anomalies, 0 spread≤0
+
+**Next: Phase 5** — RDTSC latency profiler (pin to P-core on Core Ultra 7 155H, P50/P99/P99.9 per stage).
+
 **Phase 3 complete (2026-03-28).** Array-indexed order book with window rebasing.
 - Flat `Level[8192]` arrays per side, O(1) add/remove, incremental best_bid/ask tracking
 - Separate `bid_base`/`ask_base` per symbol; `rebase_side()` slides window via memmove when price drifts out of range
