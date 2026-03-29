@@ -32,6 +32,7 @@ enable_testing()
 add_executable(hermes_tests
     tests/test_parser.cpp
     tests/test_order_book.cpp
+    tests/test_signals.cpp
 )
 target_link_libraries(hermes_tests hermes_lib GTest::gtest_main)
 include(GoogleTest)
