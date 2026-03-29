@@ -17,8 +17,9 @@ target_include_directories(hermes_lib PUBLIC include)
 add_executable(hermes src/main.cpp)
 target_link_libraries(hermes hermes_lib)
 
-# Google Test via FetchContent (downloads automatically, no manual install)
+# Google Test via FetchContent — DISCONNECTED avoids re-fetching after first download
 include(FetchContent)
+set(FETCHCONTENT_UPDATES_DISCONNECTED ON)
 FetchContent_Declare(
     googletest
     GIT_REPOSITORY https://github.com/google/googletest.git
@@ -27,7 +28,7 @@ FetchContent_Declare(
 set(gtest_force_shared_crt ON CACHE BOOL "" FORCE)
 FetchContent_MakeAvailable(googletest)
 
-# Test binary
+# Unit tests (fast — no file I/O, runs in <1s)
 enable_testing()
 add_executable(hermes_tests
     tests/test_parser.cpp
@@ -37,3 +38,14 @@ add_executable(hermes_tests
 target_link_libraries(hermes_tests hermes_lib GTest::gtest_main)
 include(GoogleTest)
 gtest_discover_tests(hermes_tests)
+
+# Integration test (slow — reads full ITCH file, run separately)
+set(ITCH_FILE "" CACHE STRING "Path to ITCH file for integration test")
+if(ITCH_FILE)
+    add_executable(hermes_integration_tests
+        tests/test_integration.cpp
+    )
+    target_link_libraries(hermes_integration_tests hermes_lib GTest::gtest_main)
+    target_compile_definitions(hermes_integration_tests PRIVATE ITCH_FILE_PATH="${ITCH_FILE}")
+    gtest_discover_tests(hermes_integration_tests)
+endif()
