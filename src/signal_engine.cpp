@@ -27,18 +27,21 @@ Signals compute_signals(const OrderBook* book) {
     s.microprice = (uint32_t)(((uint64_t)best_ask * bid_vol +
                                 (uint64_t)best_bid * ask_vol) / denom);
 
-    // OBI over top-5 bid and ask levels
+    // OBI over top-5 bid and ask levels (skip empty levels)
     uint64_t total_bid = 0, total_ask = 0;
     uint32_t count = 0;
-    for (uint32_t i = book->best_bid_idx; count < 5; --i) {
-        total_bid += book->bids[i].quantity;
-        ++count;
-        if (i == 0) break;
+    for (int32_t i = (int32_t)book->best_bid_idx; i >= 0 && count < 5; --i) {
+        if (book->bids[i].quantity > 0) {
+            total_bid += book->bids[i].quantity;
+            ++count;
+        }
     }
     count = 0;
     for (uint32_t i = book->best_ask_idx; i < MAX_LEVELS && count < 5; ++i) {
-        total_ask += book->asks[i].quantity;
-        ++count;
+        if (book->asks[i].quantity > 0) {
+            total_ask += book->asks[i].quantity;
+            ++count;
+        }
     }
     uint64_t total = total_bid + total_ask;
     s.obi   = (total > 0) ? (float)((int64_t)total_bid - (int64_t)total_ask) / (float)total : 0.0f;
