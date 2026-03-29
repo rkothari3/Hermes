@@ -10,3 +10,6 @@ build/
 # Compiled binaries
 counter
 hermes
+
+# Generated output files
+aapl_signals.csv

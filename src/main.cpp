@@ -65,8 +65,8 @@ struct PipelineState {
     FILE*    csv_fp = nullptr;
 };
 
-static void maybe_write_signals(PipelineState* ps) {
-    if (!ps->have_aapl || !ps->csv_fp) return;
+static void maybe_write_signals(PipelineState* ps, uint16_t locate) {
+    if (!ps->have_aapl || locate != ps->locate_aapl || !ps->csv_fp) return;
     const OrderBook* book = ps->ms->books[ps->locate_aapl];
     if (!book) return;
     Signals s = compute_signals(book);
@@ -112,37 +112,37 @@ int main(int argc, char* argv[]) {
     h.on_add_order = [](const AddOrder& msg, void* ctx) {
         auto* ps = (PipelineState*)ctx;
         handle_add_order(ps->ms, msg);
-        ++ps->msg_count; maybe_snapshot(ps); maybe_write_signals(ps);
+        ++ps->msg_count; maybe_snapshot(ps); maybe_write_signals(ps, msg.locate);
     };
     h.on_add_order_mpid = [](const AddOrderMPID& msg, void* ctx) {
         auto* ps = (PipelineState*)ctx;
         handle_add_order_mpid(ps->ms, msg);
-        ++ps->msg_count; maybe_snapshot(ps); maybe_write_signals(ps);
+        ++ps->msg_count; maybe_snapshot(ps); maybe_write_signals(ps, msg.locate);
     };
     h.on_order_delete = [](const OrderDelete& msg, void* ctx) {
         auto* ps = (PipelineState*)ctx;
         handle_order_delete(ps->ms, msg);
-        ++ps->msg_count; maybe_snapshot(ps); maybe_write_signals(ps);
+        ++ps->msg_count; maybe_snapshot(ps); maybe_write_signals(ps, msg.locate);
     };
     h.on_order_cancel = [](const OrderCancel& msg, void* ctx) {
         auto* ps = (PipelineState*)ctx;
         handle_order_cancel(ps->ms, msg);
-        ++ps->msg_count; maybe_snapshot(ps); maybe_write_signals(ps);
+        ++ps->msg_count; maybe_snapshot(ps); maybe_write_signals(ps, msg.locate);
     };
     h.on_order_replace = [](const OrderReplace& msg, void* ctx) {
         auto* ps = (PipelineState*)ctx;
         handle_order_replace(ps->ms, msg);
-        ++ps->msg_count; maybe_snapshot(ps); maybe_write_signals(ps);
+        ++ps->msg_count; maybe_snapshot(ps); maybe_write_signals(ps, msg.locate);
     };
     h.on_order_executed = [](const OrderExecuted& msg, void* ctx) {
         auto* ps = (PipelineState*)ctx;
         handle_order_executed(ps->ms, msg);
-        ++ps->msg_count; maybe_snapshot(ps); maybe_write_signals(ps);
+        ++ps->msg_count; maybe_snapshot(ps); maybe_write_signals(ps, msg.locate);
     };
     h.on_order_executed_price = [](const OrderExecutedPrice& msg, void* ctx) {
         auto* ps = (PipelineState*)ctx;
         handle_order_executed_price(ps->ms, msg);
-        ++ps->msg_count; maybe_snapshot(ps); maybe_write_signals(ps);
+        ++ps->msg_count; maybe_snapshot(ps); maybe_write_signals(ps, msg.locate);
     };
 
     ps.csv_fp = fopen("aapl_signals.csv", "w");
