@@ -1,11 +1,13 @@
-# *.gz
-# 12302019.NASDAQ_ITCH50
+# ITCH data files (large binary, download separately)
+*.gz
+*.NASDAQ_ITCH50
 
 # Git worktrees
 .worktrees/
 
 # Build output
 build/
+build_check/
 
 # Compiled binaries
 counter
@@ -13,3 +15,6 @@ hermes
 
 # Generated output files
 aapl_signals.csv
+
+# Claude Code local settings
+.claude/
