@@ -129,7 +129,7 @@ TEST_F(SignalTest, OBI_EqualVolumes_IsZero) {
     EXPECT_FLOAT_EQ(s.obi, 0.0f);
 }
 
-TEST_F(SignalTest, OBI_AllBid_IsPlusOne) {
+TEST_F(SignalTest, OBI_HeavyBidSide_IsNearPlusOne) {
     // Heavy bid vs tiny ask
     handle_stock_directory(ms, make_dir(1, "TEST"));
     handle_add_order(ms, make_add(1, 1, 1000000, 10000, 'B'));
