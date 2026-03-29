@@ -4,6 +4,7 @@
 #include <cstring>
 #include "itch_parser.hpp"
 #include "order_book.hpp"
+#include "signal_engine.hpp"
 
 // ── Snapshot printer ──────────────────────────────────────────────────────────
 
@@ -61,7 +62,19 @@ struct PipelineState {
              locate_amzn = 0, locate_nvda = 0;
     bool     have_aapl = false, have_msft = false, have_tsla = false,
              have_amzn = false, have_nvda = false;
+    FILE*    csv_fp = nullptr;
 };
+
+static void maybe_write_signals(PipelineState* ps, uint16_t locate) {
+    if (!ps->have_aapl || locate != ps->locate_aapl || !ps->csv_fp) return;
+    const OrderBook* book = ps->ms->books[ps->locate_aapl];
+    if (!book) return;
+    Signals s = compute_signals(book);
+    if (!s.valid) return;
+    fprintf(ps->csv_fp, "%llu,%u,%u,%u,%.6f\n",
+            (unsigned long long)ps->msg_count,
+            s.spread, s.mid_price, s.microprice, (double)s.obi);
+}
 
 static void maybe_snapshot(PipelineState* ps) {
     if (ps->msg_count % 1'000'000 != 0) return;
@@ -99,38 +112,42 @@ int main(int argc, char* argv[]) {
     h.on_add_order = [](const AddOrder& msg, void* ctx) {
         auto* ps = (PipelineState*)ctx;
         handle_add_order(ps->ms, msg);
-        ++ps->msg_count; maybe_snapshot(ps);
+        ++ps->msg_count; maybe_snapshot(ps); maybe_write_signals(ps, msg.locate);
     };
     h.on_add_order_mpid = [](const AddOrderMPID& msg, void* ctx) {
         auto* ps = (PipelineState*)ctx;
         handle_add_order_mpid(ps->ms, msg);
-        ++ps->msg_count; maybe_snapshot(ps);
+        ++ps->msg_count; maybe_snapshot(ps); maybe_write_signals(ps, msg.locate);
     };
     h.on_order_delete = [](const OrderDelete& msg, void* ctx) {
         auto* ps = (PipelineState*)ctx;
         handle_order_delete(ps->ms, msg);
-        ++ps->msg_count; maybe_snapshot(ps);
+        ++ps->msg_count; maybe_snapshot(ps); maybe_write_signals(ps, msg.locate);
     };
     h.on_order_cancel = [](const OrderCancel& msg, void* ctx) {
         auto* ps = (PipelineState*)ctx;
         handle_order_cancel(ps->ms, msg);
-        ++ps->msg_count; maybe_snapshot(ps);
+        ++ps->msg_count; maybe_snapshot(ps); maybe_write_signals(ps, msg.locate);
     };
     h.on_order_replace = [](const OrderReplace& msg, void* ctx) {
         auto* ps = (PipelineState*)ctx;
         handle_order_replace(ps->ms, msg);
-        ++ps->msg_count; maybe_snapshot(ps);
+        ++ps->msg_count; maybe_snapshot(ps); maybe_write_signals(ps, msg.locate);
     };
     h.on_order_executed = [](const OrderExecuted& msg, void* ctx) {
         auto* ps = (PipelineState*)ctx;
         handle_order_executed(ps->ms, msg);
-        ++ps->msg_count; maybe_snapshot(ps);
+        ++ps->msg_count; maybe_snapshot(ps); maybe_write_signals(ps, msg.locate);
     };
     h.on_order_executed_price = [](const OrderExecutedPrice& msg, void* ctx) {
         auto* ps = (PipelineState*)ctx;
         handle_order_executed_price(ps->ms, msg);
-        ++ps->msg_count; maybe_snapshot(ps);
+        ++ps->msg_count; maybe_snapshot(ps); maybe_write_signals(ps, msg.locate);
     };
+
+    ps.csv_fp = fopen("aapl_signals.csv", "w");
+    if (!ps.csv_fp) { fprintf(stderr, "Cannot open aapl_signals.csv\n"); return 1; }
+    fprintf(ps.csv_fp, "msg_count,spread,mid_price,microprice,obi\n");
 
     parse_file(argv[1], h);
 
@@ -138,6 +155,7 @@ int main(int argc, char* argv[]) {
            (unsigned long long)ps.msg_count);
     printf("Active orders remaining in map: %zu\n", ps.ms->order_map.size());
 
+    if (ps.csv_fp) fclose(ps.csv_fp);
     destroy_market_state(ps.ms);
     return 0;
 }
