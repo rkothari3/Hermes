@@ -16,9 +16,7 @@ hermes
 # Generated output files
 aapl_signals.csv
 
-# Claude Code local settings and project instructions
+
 .claude/
 CLAUDE.md
-
-# Docs (plans, bench results — local reference only)
 docs/
