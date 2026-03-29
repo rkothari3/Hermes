@@ -530,6 +530,17 @@ Keep it focused. The narrower the scope, the deeper the engineering, the more im
 
 ## Current Status
 
+**Phase 6 complete (2026-03-29).** README and project polish.
+- `README.md`: project overview, ASCII pipeline diagram, 5 design decision sections,
+  benchmark table (860ns WSL2, ~80ns fast-mode, 38ns signal), build instructions,
+  data source, What I Learned
+- Performance story: array-indexed book vs std::map (theoretical 200-500ns cache
+  miss savings); RDTSC serialization fix (bare rdtsc → rdtsc_start/rdtsc_end)
+- Threading model clarified: single-threaded sequential; SPSC noted as future ext.
+- **Project complete.** All 6 phases done.
+
+**Next: None. Project complete.** (Future: Project Pulse — ML signals extension)
+
 **Phase 5 complete (2026-03-29).** RDTSC latency profiler.
 - `rdtsc_start()` (LFENCE+RDTSC) / `rdtsc_end()` (RDTSCP+LFENCE) with memory clobbers
 - `StageSampler`: 2000-bucket 1ns histogram (48KB fixed memory); `LatencyProfiler` with book/signal/total stages
@@ -537,8 +548,6 @@ Keep it focused. The narrower the scope, the deeper the engineering, the more im
 - All 7 callbacks instrumented; P50/P99/P99.9 report at program end
 - 7 new tests, 43/43 total passing
 - Results: Book Update P50=860ns, Signal P50=38ns on WSL2 (bimodal; bare-metal est. P50~80ns)
-
-**Next: Phase 6** — README with architecture diagram, design decisions, before/after optimization story.
 
 **Phase 4 complete (2026-03-29).** Signal engine with AAPL CSV output.
 - `compute_signals()`: spread, mid-price, microprice (Stoikov), OBI over top-5 non-empty levels
