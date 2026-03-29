@@ -9,6 +9,7 @@ add_compile_options(-Wall -Wextra -O2)
 add_library(hermes_lib
     src/itch_parser.cpp
     src/order_book.cpp
+    src/signal_engine.cpp
 )
 target_include_directories(hermes_lib PUBLIC include)
 
