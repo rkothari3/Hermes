@@ -530,6 +530,16 @@ Keep it focused. The narrower the scope, the deeper the engineering, the more im
 
 ## Current Status
 
+**Phase 5 complete (2026-03-29).** RDTSC latency profiler.
+- `rdtsc_start()` (LFENCE+RDTSC) / `rdtsc_end()` (RDTSCP+LFENCE) with memory clobbers
+- `StageSampler`: 2000-bucket 1ns histogram (48KB fixed memory); `LatencyProfiler` with book/signal/total stages
+- `calibrate_rdtsc_ghz()` via CLOCK_MONOTONIC busy-wait; `pin_to_core(0)` via pthread_setaffinity_np
+- All 7 callbacks instrumented; P50/P99/P99.9 report at program end
+- 7 new tests, 43/43 total passing
+- Results: Book Update P50=860ns, Signal P50=38ns on WSL2 (bimodal; bare-metal est. P50~80ns)
+
+**Next: Phase 6** — README with architecture diagram, design decisions, before/after optimization story.
+
 **Phase 4 complete (2026-03-29).** Signal engine with AAPL CSV output.
 - `compute_signals()`: spread, mid-price, microprice (Stoikov), OBI over top-5 non-empty levels
 - All integer arithmetic in hot path; OBI as float; int32_t bid loop prevents uint32_t underflow
