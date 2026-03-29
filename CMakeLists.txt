@@ -10,8 +10,10 @@ add_library(hermes_lib
     src/itch_parser.cpp
     src/order_book.cpp
     src/signal_engine.cpp
+    src/latency_profiler.cpp
 )
 target_include_directories(hermes_lib PUBLIC include)
+target_link_libraries(hermes_lib pthread)
 
 # Main binary
 add_executable(hermes src/main.cpp)
