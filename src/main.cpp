@@ -5,6 +5,7 @@
 #include "itch_parser.hpp"
 #include "order_book.hpp"
 #include "signal_engine.hpp"
+#include "latency_profiler.hpp"
 
 // ── Snapshot printer ──────────────────────────────────────────────────────────
 
@@ -56,13 +57,14 @@ static void print_snapshot(const MarketState* ms, const char* symbol,
 // ── Pipeline state ────────────────────────────────────────────────────────────
 
 struct PipelineState {
-    MarketState* ms;
-    uint64_t     msg_count = 0;
+    MarketState*    ms;
+    uint64_t        msg_count = 0;
     uint16_t locate_aapl = 0, locate_msft = 0, locate_tsla = 0,
              locate_amzn = 0, locate_nvda = 0;
     bool     have_aapl = false, have_msft = false, have_tsla = false,
              have_amzn = false, have_nvda = false;
-    FILE*    csv_fp = nullptr;
+    FILE*           csv_fp   = nullptr;
+    LatencyProfiler profiler;
 };
 
 static void maybe_write_signals(PipelineState* ps, uint16_t locate) {
@@ -88,6 +90,8 @@ static void maybe_snapshot(PipelineState* ps) {
 }
 
 int main(int argc, char* argv[]) {
+    pin_to_core(0);   // pin to CPU 0 (P-core) before any work
+
     if (argc != 2) {
         fprintf(stderr, "Usage: %s <itch_file>\n", argv[0]);
         return 1;
@@ -95,6 +99,8 @@ int main(int argc, char* argv[]) {
 
     PipelineState ps{};
     ps.ms = create_market_state();
+    ps.profiler.ghz = calibrate_rdtsc_ghz();
+    fprintf(stderr, "TSC calibrated: %.3f GHz\n", ps.profiler.ghz);
 
     MessageHandlers h{};
     h.ctx = &ps;
@@ -111,38 +117,87 @@ int main(int argc, char* argv[]) {
 
     h.on_add_order = [](const AddOrder& msg, void* ctx) {
         auto* ps = (PipelineState*)ctx;
+        uint64_t t0 = rdtsc_start();
         handle_add_order(ps->ms, msg);
-        ++ps->msg_count; maybe_snapshot(ps); maybe_write_signals(ps, msg.locate);
+        uint64_t t1 = rdtsc_end();
+        ++ps->msg_count; maybe_snapshot(ps);
+        maybe_write_signals(ps, msg.locate);
+        uint64_t t2 = rdtsc_end();
+        ps->profiler.book.record(t1 - t0, ps->profiler.ghz);
+        ps->profiler.signal.record(t2 - t1, ps->profiler.ghz);
+        ps->profiler.total.record(t2 - t0, ps->profiler.ghz);
     };
     h.on_add_order_mpid = [](const AddOrderMPID& msg, void* ctx) {
         auto* ps = (PipelineState*)ctx;
+        uint64_t t0 = rdtsc_start();
         handle_add_order_mpid(ps->ms, msg);
-        ++ps->msg_count; maybe_snapshot(ps); maybe_write_signals(ps, msg.locate);
+        uint64_t t1 = rdtsc_end();
+        ++ps->msg_count; maybe_snapshot(ps);
+        maybe_write_signals(ps, msg.locate);
+        uint64_t t2 = rdtsc_end();
+        ps->profiler.book.record(t1 - t0, ps->profiler.ghz);
+        ps->profiler.signal.record(t2 - t1, ps->profiler.ghz);
+        ps->profiler.total.record(t2 - t0, ps->profiler.ghz);
     };
     h.on_order_delete = [](const OrderDelete& msg, void* ctx) {
         auto* ps = (PipelineState*)ctx;
+        uint64_t t0 = rdtsc_start();
         handle_order_delete(ps->ms, msg);
-        ++ps->msg_count; maybe_snapshot(ps); maybe_write_signals(ps, msg.locate);
+        uint64_t t1 = rdtsc_end();
+        ++ps->msg_count; maybe_snapshot(ps);
+        maybe_write_signals(ps, msg.locate);
+        uint64_t t2 = rdtsc_end();
+        ps->profiler.book.record(t1 - t0, ps->profiler.ghz);
+        ps->profiler.signal.record(t2 - t1, ps->profiler.ghz);
+        ps->profiler.total.record(t2 - t0, ps->profiler.ghz);
     };
     h.on_order_cancel = [](const OrderCancel& msg, void* ctx) {
         auto* ps = (PipelineState*)ctx;
+        uint64_t t0 = rdtsc_start();
         handle_order_cancel(ps->ms, msg);
-        ++ps->msg_count; maybe_snapshot(ps); maybe_write_signals(ps, msg.locate);
+        uint64_t t1 = rdtsc_end();
+        ++ps->msg_count; maybe_snapshot(ps);
+        maybe_write_signals(ps, msg.locate);
+        uint64_t t2 = rdtsc_end();
+        ps->profiler.book.record(t1 - t0, ps->profiler.ghz);
+        ps->profiler.signal.record(t2 - t1, ps->profiler.ghz);
+        ps->profiler.total.record(t2 - t0, ps->profiler.ghz);
     };
     h.on_order_replace = [](const OrderReplace& msg, void* ctx) {
         auto* ps = (PipelineState*)ctx;
+        uint64_t t0 = rdtsc_start();
         handle_order_replace(ps->ms, msg);
-        ++ps->msg_count; maybe_snapshot(ps); maybe_write_signals(ps, msg.locate);
+        uint64_t t1 = rdtsc_end();
+        ++ps->msg_count; maybe_snapshot(ps);
+        maybe_write_signals(ps, msg.locate);
+        uint64_t t2 = rdtsc_end();
+        ps->profiler.book.record(t1 - t0, ps->profiler.ghz);
+        ps->profiler.signal.record(t2 - t1, ps->profiler.ghz);
+        ps->profiler.total.record(t2 - t0, ps->profiler.ghz);
     };
     h.on_order_executed = [](const OrderExecuted& msg, void* ctx) {
         auto* ps = (PipelineState*)ctx;
+        uint64_t t0 = rdtsc_start();
         handle_order_executed(ps->ms, msg);
-        ++ps->msg_count; maybe_snapshot(ps); maybe_write_signals(ps, msg.locate);
+        uint64_t t1 = rdtsc_end();
+        ++ps->msg_count; maybe_snapshot(ps);
+        maybe_write_signals(ps, msg.locate);
+        uint64_t t2 = rdtsc_end();
+        ps->profiler.book.record(t1 - t0, ps->profiler.ghz);
+        ps->profiler.signal.record(t2 - t1, ps->profiler.ghz);
+        ps->profiler.total.record(t2 - t0, ps->profiler.ghz);
     };
     h.on_order_executed_price = [](const OrderExecutedPrice& msg, void* ctx) {
         auto* ps = (PipelineState*)ctx;
+        uint64_t t0 = rdtsc_start();
         handle_order_executed_price(ps->ms, msg);
-        ++ps->msg_count; maybe_snapshot(ps); maybe_write_signals(ps, msg.locate);
+        uint64_t t1 = rdtsc_end();
+        ++ps->msg_count; maybe_snapshot(ps);
+        maybe_write_signals(ps, msg.locate);
+        uint64_t t2 = rdtsc_end();
+        ps->profiler.book.record(t1 - t0, ps->profiler.ghz);
+        ps->profiler.signal.record(t2 - t1, ps->profiler.ghz);
+        ps->profiler.total.record(t2 - t0, ps->profiler.ghz);
     };
 
     ps.csv_fp = fopen("aapl_signals.csv", "w");
@@ -151,8 +206,10 @@ int main(int argc, char* argv[]) {
 
     parse_file(argv[1], h);
 
+    ps.profiler.print_report();
+
     printf("\nDone. %llu book-updating messages processed.\n",
-           (unsigned long long)ps.msg_count);
+           (unsigned long long)ps.profiler.total.total);
     printf("Active orders remaining in map: %zu\n", ps.ms->order_map.size());
 
     if (ps.csv_fp) fclose(ps.csv_fp);
