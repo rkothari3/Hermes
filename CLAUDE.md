@@ -530,6 +530,14 @@ Keep it focused. The narrower the scope, the deeper the engineering, the more im
 
 ## Current Status
 
+**Phase 3 complete (2026-03-28).** Array-indexed order book with window rebasing.
+- Flat `Level[8192]` arrays per side, O(1) add/remove, incremental best_bid/ask tracking
+- Separate `bid_base`/`ask_base` per symbol; `rebase_side()` slides window via memmove when price drifts out of range
+- Generation counters (`bid_gen`/`ask_gen`) prevent stale removes after full-clear rebase
+- All 7 message types handled: AddOrder, AddOrderMPID, Delete, Cancel, Replace, Executed, ExecutedPrice
+- `main.cpp` prints top-5 bid/ask for AAPL/MSFT/TSLA/AMZN/NVDA every 1M messages
+- 25/25 tests passing; 263M messages, 0 underflows on real ITCH file; debug build clean
+
 **Phase 2 complete (2026-03-28).** Full ITCH parser with structs, byte-swapping, and unit tests.
 - All 9 message types parsed and tested field-by-field (A, F, E, C, X, D, U, P, R)
 - Counts verified against Phase 1 output: 264,469,445 handled messages match exactly
@@ -537,5 +545,5 @@ Keep it focused. The narrower the scope, the deeper the engineering, the more im
 - 10/10 tests passing (9 unit + 1 integration)
 - All code in `include/itch_parser.hpp`, `src/itch_parser.cpp`, `src/main.cpp`, `tests/test_parser.cpp`
 
-**Next: Phase 3** — Order book updater (array-indexed, cache-friendly, per-symbol).
+**Next: Phase 4** — Signal computation (OBI, microprice, spread, mid-price).
 
