@@ -26,7 +26,7 @@ struct Order {
     uint32_t quantity;
     uint16_t locate;
     uint8_t  side;   // 'B' = bid, 'S' = ask
-    uint8_t  pad;
+    uint8_t  gen;    // rebase generation at time of add (for stale-remove detection)
 };
 
 // One symbol's full order book — ~131KB per symbol.
@@ -43,6 +43,8 @@ struct OrderBook {
     bool     bid_initialized = false;
     bool     ask_initialized = false;
     bool     initialized  = false;  // true once either side has seen an order
+    uint8_t  bid_gen = 0;   // incremented each time bid side is fully cleared by rebase
+    uint8_t  ask_gen = 0;   // incremented each time ask side is fully cleared by rebase
     Level    bids[MAX_LEVELS] = {};
     Level    asks[MAX_LEVELS] = {};
 };
