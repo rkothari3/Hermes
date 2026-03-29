@@ -1,19 +1,78 @@
+// src/main.cpp
 #include <cstdio>
 #include <cstdint>
+#include <cstring>
 #include "itch_parser.hpp"
+#include "order_book.hpp"
 
-struct Counts {
-    uint64_t add_order        = 0;
-    uint64_t add_order_mpid   = 0;
-    uint64_t order_executed   = 0;
-    uint64_t order_exec_price = 0;
-    uint64_t order_cancel     = 0;
-    uint64_t order_delete     = 0;
-    uint64_t order_replace    = 0;
-    uint64_t trade            = 0;
-    uint64_t stock_directory  = 0;
-    uint64_t total            = 0;
+// ── Snapshot printer ──────────────────────────────────────────────────────────
+
+static void print_snapshot(const MarketState* ms, const char* symbol,
+                            uint16_t locate, uint64_t msg_count) {
+    const OrderBook* book = ms->books[locate];
+    if (!book || !book->initialized) return;
+
+    bool has_bid = book->bid_initialized && book->bids[book->best_bid_idx].quantity > 0;
+    bool has_ask = book->ask_initialized && book->asks[book->best_ask_idx].quantity > 0;
+    if (!has_bid || !has_ask) return;
+
+    uint32_t best_bid_price = book->bid_base + book->best_bid_idx;
+    uint32_t best_ask_price = book->ask_base + book->best_ask_idx;
+    if (best_bid_price >= best_ask_price) return;  // crossed/locked book, skip
+
+    printf("\n[%llu msgs] %s (locate %u)\n",
+           (unsigned long long)msg_count, symbol, locate);
+
+    // Collect up to 5 ask levels above best ask (print highest first for display)
+    uint32_t asks[5];
+    uint32_t ask_count = 0;
+    for (uint32_t i = book->best_ask_idx; i < MAX_LEVELS && ask_count < 5; ++i) {
+        if (book->asks[i].quantity > 0) asks[ask_count++] = i;
+    }
+    for (int i = (int)ask_count - 1; i >= 0; --i) {
+        uint32_t idx   = asks[i];
+        uint32_t price = book->ask_base + idx;
+        printf("  ASK  $%8.4f  x %6u\n",
+               price / 10000.0, book->asks[idx].quantity);
+    }
+
+    printf("  --- spread: $%.4f ---\n",
+           (double)(best_ask_price - best_bid_price) / 10000.0);
+
+    // Print top 5 bid levels (best first = highest price first)
+    uint32_t bid_count = 0;
+    for (uint32_t i = book->best_bid_idx; bid_count < 5; --i) {
+        if (book->bids[i].quantity > 0) {
+            uint32_t price = book->bid_base + i;
+            printf("  BID  $%8.4f  x %6u\n",
+                   price / 10000.0, book->bids[i].quantity);
+            ++bid_count;
+        }
+        if (i == 0) break;
+    }
+}
+
+// ── Pipeline state ────────────────────────────────────────────────────────────
+
+struct PipelineState {
+    MarketState* ms;
+    uint64_t     msg_count = 0;
+    uint16_t locate_aapl = 0, locate_msft = 0, locate_tsla = 0,
+             locate_amzn = 0, locate_nvda = 0;
+    bool     have_aapl = false, have_msft = false, have_tsla = false,
+             have_amzn = false, have_nvda = false;
 };
+
+static void maybe_snapshot(PipelineState* ps) {
+    if (ps->msg_count % 1'000'000 != 0) return;
+
+    if (ps->have_aapl) print_snapshot(ps->ms, "AAPL", ps->locate_aapl, ps->msg_count);
+    if (ps->have_msft) print_snapshot(ps->ms, "MSFT", ps->locate_msft, ps->msg_count);
+    if (ps->have_tsla) print_snapshot(ps->ms, "TSLA", ps->locate_tsla, ps->msg_count);
+    if (ps->have_amzn) print_snapshot(ps->ms, "AMZN", ps->locate_amzn, ps->msg_count);
+    if (ps->have_nvda) print_snapshot(ps->ms, "NVDA", ps->locate_nvda, ps->msg_count);
+    fflush(stdout);
+}
 
 int main(int argc, char* argv[]) {
     if (argc != 2) {
@@ -21,33 +80,64 @@ int main(int argc, char* argv[]) {
         return 1;
     }
 
-    Counts c{};
-    MessageHandlers h{};
-    h.ctx = &c;
+    PipelineState ps{};
+    ps.ms = create_market_state();
 
-    h.on_add_order            = [](const AddOrder&,            void* ctx){ auto* c = (Counts*)ctx; c->add_order++;        c->total++; };
-    h.on_add_order_mpid       = [](const AddOrderMPID&,        void* ctx){ auto* c = (Counts*)ctx; c->add_order_mpid++;   c->total++; };
-    h.on_order_executed       = [](const OrderExecuted&,       void* ctx){ auto* c = (Counts*)ctx; c->order_executed++;   c->total++; };
-    h.on_order_executed_price = [](const OrderExecutedPrice&,  void* ctx){ auto* c = (Counts*)ctx; c->order_exec_price++; c->total++; };
-    h.on_order_cancel         = [](const OrderCancel&,         void* ctx){ auto* c = (Counts*)ctx; c->order_cancel++;     c->total++; };
-    h.on_order_delete         = [](const OrderDelete&,         void* ctx){ auto* c = (Counts*)ctx; c->order_delete++;     c->total++; };
-    h.on_order_replace        = [](const OrderReplace&,        void* ctx){ auto* c = (Counts*)ctx; c->order_replace++;    c->total++; };
-    h.on_trade                = [](const Trade&,               void* ctx){ auto* c = (Counts*)ctx; c->trade++;            c->total++; };
-    h.on_stock_directory      = [](const StockDirectory&,      void* ctx){ auto* c = (Counts*)ctx; c->stock_directory++;  c->total++; };
+    MessageHandlers h{};
+    h.ctx = &ps;
+
+    h.on_stock_directory = [](const StockDirectory& msg, void* ctx) {
+        auto* ps = (PipelineState*)ctx;
+        handle_stock_directory(ps->ms, msg);
+        if (strcmp(msg.stock, "AAPL") == 0) { ps->locate_aapl = msg.locate; ps->have_aapl = true; }
+        if (strcmp(msg.stock, "MSFT") == 0) { ps->locate_msft = msg.locate; ps->have_msft = true; }
+        if (strcmp(msg.stock, "TSLA") == 0) { ps->locate_tsla = msg.locate; ps->have_tsla = true; }
+        if (strcmp(msg.stock, "AMZN") == 0) { ps->locate_amzn = msg.locate; ps->have_amzn = true; }
+        if (strcmp(msg.stock, "NVDA") == 0) { ps->locate_nvda = msg.locate; ps->have_nvda = true; }
+    };
+
+    h.on_add_order = [](const AddOrder& msg, void* ctx) {
+        auto* ps = (PipelineState*)ctx;
+        handle_add_order(ps->ms, msg);
+        ++ps->msg_count; maybe_snapshot(ps);
+    };
+    h.on_add_order_mpid = [](const AddOrderMPID& msg, void* ctx) {
+        auto* ps = (PipelineState*)ctx;
+        handle_add_order_mpid(ps->ms, msg);
+        ++ps->msg_count; maybe_snapshot(ps);
+    };
+    h.on_order_delete = [](const OrderDelete& msg, void* ctx) {
+        auto* ps = (PipelineState*)ctx;
+        handle_order_delete(ps->ms, msg);
+        ++ps->msg_count; maybe_snapshot(ps);
+    };
+    h.on_order_cancel = [](const OrderCancel& msg, void* ctx) {
+        auto* ps = (PipelineState*)ctx;
+        handle_order_cancel(ps->ms, msg);
+        ++ps->msg_count; maybe_snapshot(ps);
+    };
+    h.on_order_replace = [](const OrderReplace& msg, void* ctx) {
+        auto* ps = (PipelineState*)ctx;
+        handle_order_replace(ps->ms, msg);
+        ++ps->msg_count; maybe_snapshot(ps);
+    };
+    h.on_order_executed = [](const OrderExecuted& msg, void* ctx) {
+        auto* ps = (PipelineState*)ctx;
+        handle_order_executed(ps->ms, msg);
+        ++ps->msg_count; maybe_snapshot(ps);
+    };
+    h.on_order_executed_price = [](const OrderExecutedPrice& msg, void* ctx) {
+        auto* ps = (PipelineState*)ctx;
+        handle_order_executed_price(ps->ms, msg);
+        ++ps->msg_count; maybe_snapshot(ps);
+    };
 
     parse_file(argv[1], h);
 
-    printf("Parsed message counts:\n");
-    printf("  Add Order (A):            %llu\n", (unsigned long long)c.add_order);
-    printf("  Add Order MPID (F):       %llu\n", (unsigned long long)c.add_order_mpid);
-    printf("  Order Executed (E):       %llu\n", (unsigned long long)c.order_executed);
-    printf("  Order Exec w/Price (C):   %llu\n", (unsigned long long)c.order_exec_price);
-    printf("  Order Cancel (X):         %llu\n", (unsigned long long)c.order_cancel);
-    printf("  Order Delete (D):         %llu\n", (unsigned long long)c.order_delete);
-    printf("  Order Replace (U):        %llu\n", (unsigned long long)c.order_replace);
-    printf("  Trade (P):                %llu\n", (unsigned long long)c.trade);
-    printf("  Stock Directory (R):      %llu\n", (unsigned long long)c.stock_directory);
-    printf("  ---------------------------------\n");
-    printf("  Handled total:            %llu\n", (unsigned long long)c.total);
+    printf("\nDone. %llu book-updating messages processed.\n",
+           (unsigned long long)ps.msg_count);
+    printf("Active orders remaining in map: %zu\n", ps.ms->order_map.size());
+
+    destroy_market_state(ps.ms);
     return 0;
 }

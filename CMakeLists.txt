@@ -6,7 +6,10 @@ set(CMAKE_CXX_STANDARD_REQUIRED ON)
 add_compile_options(-Wall -Wextra -O2)
 
 # Parser as a library shared between hermes binary and tests
-add_library(hermes_lib src/itch_parser.cpp)
+add_library(hermes_lib
+    src/itch_parser.cpp
+    src/order_book.cpp
+)
 target_include_directories(hermes_lib PUBLIC include)
 
 # Main binary
@@ -25,7 +28,10 @@ FetchContent_MakeAvailable(googletest)
 
 # Test binary
 enable_testing()
-add_executable(hermes_tests tests/test_parser.cpp)
+add_executable(hermes_tests
+    tests/test_parser.cpp
+    tests/test_order_book.cpp
+)
 target_link_libraries(hermes_tests hermes_lib GTest::gtest_main)
 include(GoogleTest)
 gtest_discover_tests(hermes_tests)
