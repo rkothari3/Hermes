@@ -1,6 +1,6 @@
 # Hermes
 
-A C++ NASDAQ ITCH 5.0 market data pipeline that parses 263 million binary messages from a real trading day, reconstructs live order books for every symbol on the exchange, and computes microstructure trading signals (spread, mid-price, microprice, order book imbalance). The pipeline instruments every stage with CPU cycle-level RDTSC timestamps and reports P50/P99/P99.9 latency distributions — the same kind of infrastructure every quantitative trading firm builds internally but that almost no student portfolio contains.
+A C++ NASDAQ ITCH 5.0 market data pipeline that parses 263 million binary messages from a real trading day, reconstructs live order books for every symbol on the exchange, and computes microstructure trading signals (spread, mid-price, microprice, order book imbalance). The pipeline instruments every stage with CPU cycle-level RDTSC timestamps and reports P50/P99/P99.9 latency distributions.
 
 **Key numbers (Intel Core Ultra 7 155H, WSL2 on Windows 11):**
 - 263,241,937 book-updating messages processed from a single NASDAQ trading day
