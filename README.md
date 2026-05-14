@@ -8,7 +8,9 @@ A C++ NASDAQ ITCH 5.0 market data pipeline that parses 263 million binary messag
 - Signal Compute: P50 = 38 ns, P99 = 84 ns
 - TSC calibrated at 2.995 GHz via CLOCK_MONOTONIC
 
-
+<p align="center">
+  <img src="docs/pipeline.svg?v=2" alt="Hermes pipeline diagram" width="560"/>
+</p>
 
 ---
 
