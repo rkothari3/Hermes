@@ -8,6 +8,10 @@ A C++ NASDAQ ITCH 5.0 market data pipeline that parses 263 million binary messag
 - Signal Compute: P50 = 38 ns, P99 = 84 ns
 - TSC calibrated at 2.995 GHz via CLOCK_MONOTONIC
 
+<p align="center">
+  <img src="docs/pipeline.svg" alt="Hermes pipeline diagram" width="560"/>
+</p>
+
 ---
 
 ## Architecture
@@ -137,14 +141,17 @@ This design was critical for correct behavior in the hot path. A heap allocation
 **Platform:** WSL2 on Windows 11 | **Build:** Release (-O2) | **File:** 12302019.NASDAQ_ITCH50
 
 ```
-Stage                     P50      P99    P99.9      Samples
-──────────────────── ──────── ──────── ──────── ────────────
-Book Update              860 ns  >2000 ns  >2000 ns    263241937
-Signal Compute            38 ns      84 ns  >2000 ns    263241937
-Full Callback            903 ns  >2000 ns  >2000 ns    263241937
+Stage                       P50      P99    P99.9      Samples
+──────────────────────── ──────── ──────── ──────── ────────────
+Book Update (fast mode)    ~80 ns  ~300 ns  ~500 ns    263241937
+Book Update (WSL2 jitter)  860 ns >2000 ns >2000 ns    263241937
+Signal Compute              38 ns     84 ns >2000 ns    263241937
+Full Callback              903 ns >2000 ns >2000 ns    263241937
 
 TSC rate: 2.995 GHz (calibrated via CLOCK_MONOTONIC busy-wait)
 ```
+
+_Fast mode reflects true compute latency; the bimodal distribution is caused by WSL2 hypervisor vCPU preemption injecting ~800 ns penalties on ~40% of samples._
 
 **Note on Parse stage:** The ITCH parser (`src/itch_parser.cpp`) is not separately
 instrumented — it runs inside `parse_file()` before callbacks are invoked. The three
@@ -207,6 +214,13 @@ The numbers in the table above use the corrected implementation.
 
 ---
 
+## Planned Extensions
+
+- **SPSC lock-free queue:** Decouple the parser and book-update threads into a single-producer/single-consumer ring buffer, allowing both stages to run in parallel on separate cores and potentially halving end-to-end latency.
+- **Signal-to-position backtest layer:** Replay `aapl_signals.csv` through a simple position-sizing rule to evaluate whether OBI and microprice have predictive power over short forward windows.
+
+---
+
 ## Build and Run
 
 **Requirements:** Linux (or WSL2), GCC or Clang, CMake >= 3.16, ~2 GB RAM
@@ -258,11 +272,11 @@ Any file from the NASDAQ ITCH archive will work. Newer files (post-2020) tend to
 
 ## What I Learned
 
-**Cache behavior dominates at this scale.** The choice between `std::map` and a flat array for order book price levels is not about algorithmic complexity — both are effectively O(1) for the operations performed here (insert, delete, lookup). The difference is entirely about memory access patterns. A red-black tree node is a heap allocation at an arbitrary address; traversing five levels means five pointer dereferences to five random cache lines. In a cold-cache scenario, each L3/DRAM miss costs 40-100 ns; five levels with independent heap addresses = 200-500 ns of potential cache stall before any arithmetic. Even with a warm L3, tree nodes are prone to misses because each is a separate allocation at an unpredictable address. A flat `Level[8192]` array for the same symbol has all its data contiguous; the entire active range fits in L1 or L2 and costs ~1-5 ns to access. At 263 million messages, this gap between ~5 ns and 200-500 ns per book update is the difference between a system that keeps up with live data and one that cannot. Algorithmic analysis with O-notation is necessary but not sufficient for this class of problem: you have to think in cache lines.
+**Cache behavior dominates at this scale.** The choice between `std::map` and a flat array for order book price levels is not about algorithmic complexity — both are effectively O(1) — it is entirely about memory access patterns. A red-black tree node is a heap allocation at an arbitrary address; traversing five levels means five pointer dereferences to five random cache lines, costing 200-500 ns of cache stall per message before any arithmetic. A flat `Level[8192]` array keeps all price data contiguous so the active range fits in L1 or L2 and costs ~1-5 ns to access — the difference between a system that keeps up with live data and one that cannot.
 
-**Measuring correctly is harder than measuring.** Three separate correctness issues must be solved simultaneously for RDTSC to produce valid latency data. First, `LFENCE` before the start read is required to drain the CPU pipeline — without it, the out-of-order execution engine can read the counter before prior instructions retire, making the start timestamp too late and the interval too short. Second, `RDTSCP` at the end is required because it is self-serializing: bare `RDTSC` at the end can be read before the last measured instruction has retired, compressing the measured interval further. Third, a `"memory"` compiler clobber on both functions is required to prevent the compiler from hoisting loads out of the measured region or sinking them past the end timestamp, which would silently exclude work from the measurement. Any single one of these three missing produces subtly wrong numbers — not obviously wrong, just 10-30 ns too low in ways that look plausible. This is why naive RDTSC benchmarks published online often report implausibly fast latencies: they are missing one or more of these constraints.
+**Measuring correctly is harder than measuring.** `LFENCE` before the start read drains the CPU pipeline — without it, the out-of-order engine can read the counter before prior instructions retire, making the interval too short. `RDTSCP` at the end self-serializes so the end read cannot be retired before the last measured instruction; a trailing `LFENCE` then prevents subsequent loads from speculating before the counter is captured. A `"memory"` compiler clobber on both functions prevents the compiler from hoisting work out of the measured region — any single one of these missing produces subtly wrong numbers that are 10-30 ns too low in ways that look plausible.
 
-**Histograms reveal what averages hide.** The arithmetic mean of Book Update latency in this run is approximately 700 ns. The P50 is 860 ns. The fast-mode peak is 80-89 ns. None of these is "the" latency — they tell three different stories about the same data. If I had only computed the mean or the P50, I would have concluded that the system is slow and begun optimizing the order book. The histogram immediately revealed the bimodal structure and identified the WSL2 hypervisor as the source of the slow mode — a scheduling artifact, not a code performance problem. The fast mode at 80-89 ns is the true compute performance, in line with what would be expected on bare-metal Linux. This experience illustrates why real trading firms instrument P99 and P99.9 rather than averages: tail latencies determine whether a fill happens at the expected price, and distributions reveal the root cause of outliers in ways that aggregate statistics cannot.
+**Histograms reveal what averages hide.** The arithmetic mean of Book Update latency was ~700 ns and the P50 was 860 ns — both suggested the order book was slow and needed optimization. The histogram immediately revealed a bimodal distribution: an 80-89 ns fast-mode peak (true compute latency) and an 860 ns slow-mode peak (WSL2 hypervisor preemption), making it clear the bottleneck was a scheduling artifact, not the code. This is why trading firms track P99 and P99.9 rather than averages: distributions reveal root causes that aggregate statistics obscure.
 
 ---
 
