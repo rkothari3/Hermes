@@ -9,7 +9,7 @@ A C++ NASDAQ ITCH 5.0 market data pipeline that parses 263 million binary messag
 - TSC calibrated at 2.995 GHz via CLOCK_MONOTONIC
 
 <p align="center">
-  <img src="docs/pipeline.svg" alt="Hermes pipeline diagram" width="560"/>
+  <img src="docs/pipeline.svg?v=2" alt="Hermes pipeline diagram" width="560"/>
 </p>
 
 ---
