@@ -22,46 +22,6 @@ lock-free queue decoupling the parser thread from the book-update thread would a
 stages to run in parallel on separate cores, potentially halving end-to-end latency. This is
 a planned future extension; the current focus is accurate per-stage measurement.
 
-```
-[ITCH Binary File]  (9 GB, Dec 30 2019 — 264M total messages, of which ~263M are book-updating)
-        │
-        ▼  2 MB read buffer
-┌─────────────────────┐
-│  Stage 1            │  parse_file() reads in 2 MB chunks
-│  ITCH Binary Parser │  dispatches 9 message types via callback table
-│  src/itch_parser.cpp│  big-endian → little-endian field swaps
-└──────────┬──────────┘
-           │  AddOrder / AddOrderMPID / OrderDelete / OrderCancel /
-           │  OrderReplace / OrderExecuted / OrderExecutedPrice
-           ▼
-┌─────────────────────┐  t0 = rdtsc_start()
-│  Stage 2            │  handle_*() looks up order_ref in unordered_map
-│  Order Book Updater │  updates flat Level[8192] bid/ask arrays
-│  src/order_book.cpp │  O(1) array index by (price − base_price)
-└──────────┬──────────┘  t1 = rdtsc_end()  →  book.record(t1-t0)
-           │
-           ▼
-┌─────────────────────┐
-│  Stage 3            │  compute_signals(book):
-│  Signal Computer    │    spread     = best_ask − best_bid
-│  src/signal_engine  │    mid_price  = (bid + ask) / 2
-└──────────┬──────────┘    microprice = Stoikov weighted price
-           │               obi        = top-5 level imbalance
-           │  AAPL only    t2 = rdtsc_end()  →  signal.record(t2-t1)
-           ▼
-┌─────────────────────┐
-│  Stage 4 (AAPL)     │  aapl_signals.csv
-│  CSV Output         │  1,177,357 rows of per-tick signals
-└─────────────────────┘
-           │
-           ▼
-┌─────────────────────┐
-│  Stage 5            │  StageSampler: 2000-bucket 1-ns histogram
-│  Latency Report     │  P50/P99/P99.9 for book / signal / total
-│  (program end)      │  printed to stdout
-└─────────────────────┘
-```
-
 ---
 
 ## Design Decisions

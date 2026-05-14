@@ -1,4 +1,4 @@
-<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 560 600" width="560" height="600"
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 560 496" width="560" height="496"
      font-family="ui-monospace, 'Cascadia Code', 'Courier New', monospace">
   <defs>
     <marker id="a" markerWidth="8" markerHeight="6" refX="7" refY="3" orient="auto">
@@ -7,7 +7,7 @@
   </defs>
 
   <!-- background -->
-  <rect width="560" height="600" fill="#0d1117"/>
+  <rect width="560" height="496" fill="#0d1117"/>
 
   <!-- header -->
   <text x="280" y="28" text-anchor="middle" fill="#e6edf3" font-size="14" font-weight="bold" letter-spacing="2">HERMES PIPELINE</text>
@@ -63,13 +63,4 @@
   <text x="400" y="453" text-anchor="middle" fill="#79c0ff" font-size="12" font-weight="bold">Stage 5 · Latency Report</text>
   <text x="400" y="470" text-anchor="middle" fill="#6e7681" font-size="10">P50 / P99 / P99.9 per stage</text>
 
-  <!-- legend -->
-  <rect x="85" y="508" width="390" height="68" rx="4" fill="#161b22" stroke="#21262d" stroke-width="1"/>
-  <text x="280" y="524" text-anchor="middle" fill="#8b949e" font-size="9" font-weight="bold" letter-spacing="1">RESULTS · Intel Core Ultra 7 155H · WSL2 · Release (-O2)</text>
-  <circle cx="105" cy="537" r="3" fill="#3fb950"/>
-  <text x="115" y="541" fill="#8b949e" font-size="9">Book Update  P50 ~80 ns (fast mode)  /  860 ns WSL2 measured  /  P99 &gt;2000 ns WSL2</text>
-  <circle cx="105" cy="553" r="3" fill="#3fb950"/>
-  <text x="115" y="557" fill="#8b949e" font-size="9">Signal Compute  P50 38 ns  /  P99 84 ns</text>
-  <circle cx="105" cy="569" r="3" fill="#3fb950"/>
-  <text x="115" y="573" fill="#8b949e" font-size="9">263,241,937 messages  ·  TSC calibrated at 2.995 GHz</text>
 </svg>
